@@ -108,16 +108,12 @@ const App: React.FC = () => {
         const start = i * CHUNK_DURATION_SECONDS;
         const end = Math.min((i + 1) * CHUNK_DURATION_SECONDS, totalDuration);
         
-        // Extract chunk using light byte slicing (fixes memory crash)
-        // We pass totalDuration to calculate byte offset correctly
-        const chunkBlob = await sliceAudio(audioFile.file, start, end, totalDuration);
+        // Extract chunk
+        const chunkBlob = await sliceAudio(audioFile.file, start, end);
         const base64 = await fileToBase64(chunkBlob);
         
-        // Call Gemini with the ACTUAL file mime type (mp3, wav, etc), NOT hardcoded "audio/wav"
-        // This is crucial because sliceAudio now returns the original file format chunks
-        const mimeType = audioFile.file.type || "audio/mp3";
-        const resultText = await transcribeAudioChunk(base64, mimeType);
-        
+        // Call Gemini
+        const resultText = await transcribeAudioChunk(base64, "audio/wav");
         const chunkSegments = parseGeminiOutput(resultText, start);
         
         allSegments.push(...chunkSegments);
