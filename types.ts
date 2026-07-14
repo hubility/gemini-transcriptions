@@ -1,22 +1,44 @@
+export type TranscriptionStatus =
+  | 'idle'
+  | 'uploading'
+  | 'preparing'
+  | 'transcribing'
+  | 'completed'
+  | 'error'
+  | 'cancelled';
 
-export interface TranscriptSegment {
-  id: string;
-  timestamp: string;
-  speaker: string;
-  text: string;
-  confidence?: number;
-  isProcessing?: boolean;
-}
-
-export interface AudioFile {
+export interface AudioFileInfo {
   file: File;
   name: string;
   duration: number;
-  size: string;
+  sizeBytes: number;
+  mimeType: string;
 }
 
-export interface ChunkProgress {
-  chunkIndex: number;
-  totalChunks: number;
-  status: 'pending' | 'processing' | 'completed' | 'error';
+export interface SpeakerProfile {
+  id: string;
+  name: string;
+  color: string;
 }
+
+export interface TranscriptSegment {
+  id: string;
+  startTime: number;
+  endTime: number;
+  speakerId: string;
+  text: string;
+}
+
+export interface TranscriptionResult {
+  title: string;
+  language: string;
+  speakers: SpeakerProfile[];
+  segments: TranscriptSegment[];
+}
+
+export type ProgressCallback = (
+  status: Exclude<TranscriptionStatus, 'idle' | 'completed' | 'error' | 'cancelled'>,
+  message: string,
+) => void;
+
+export type DocumentType = 'proposal' | 'upselling' | 'minutes';

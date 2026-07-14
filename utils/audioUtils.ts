@@ -1,110 +1,66 @@
+const MIME_BY_EXTENSION: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  aiff: 'audio/aiff',
+  aif: 'audio/aiff',
+  aac: 'audio/aac',
+  ogg: 'audio/ogg',
+  flac: 'audio/flac',
+  m4a: 'audio/mp4',
+  mp4: 'audio/mp4',
+  webm: 'audio/webm',
+};
 
-export async function fileToBase64(file: File | Blob): Promise<string> {
+export function getSafeMimeType(file: File): string {
+  if (file.type.startsWith('audio/')) return file.type;
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return MIME_BY_EXTENSION[extension] ?? 'audio/mpeg';
+}
+
+export function getAudioDuration(file: File): Promise<number> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      resolve(base64);
+    const audio = document.createElement('audio');
+    const url = URL.createObjectURL(file);
+
+    const cleanUp = () => {
+      audio.removeAttribute('src');
+      audio.load();
+      URL.revokeObjectURL(url);
     };
-    reader.onerror = error => reject(error);
+
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+      cleanUp();
+      resolve(duration);
+    };
+    audio.onerror = () => {
+      cleanUp();
+      reject(new Error('No se pudo leer la duración del archivo de audio.'));
+    };
+    audio.src = url;
   });
 }
 
-export function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return [h, m, s]
-    .map(v => v < 10 ? "0" + v : v)
-    .filter((v, i) => v !== "00" || i > 0)
-    .join(":");
+export function formatDuration(totalSeconds: number, includeHours = false): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds || 0));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+
+  if (includeHours || hours > 0) {
+    return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+  }
+
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-export async function sliceAudio(file: File, startSec: number, endSec: number): Promise<Blob> {
-  // In a real production app, we would use OfflineAudioContext to properly slice and re-encode.
-  // For this MVP, we use the simple blob slice which works for many formats like MP3/WAV,
-  // but might need proper header reconstruction for others. 
-  // For Gemini, sending a standard blob often works if the mime-type is correct.
-  
-  // We'll approximate the byte range based on average bitrate or use a more robust approach.
-  // Since we can't easily re-encode without a heavy library like ffmpeg.wasm, 
-  // we'll use AudioContext to get the buffer and then re-encode to a simple WAV if needed.
-  
-  const arrayBuffer = await file.arrayBuffer();
-  const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-  
-  const sampleRate = audioBuffer.sampleRate;
-  const startOffset = startSec * sampleRate;
-  const endOffset = Math.min(endSec * sampleRate, audioBuffer.length);
-  const frameCount = endOffset - startOffset;
-  
-  const newBuffer = audioCtx.createBuffer(
-    audioBuffer.numberOfChannels,
-    frameCount,
-    sampleRate
-  );
-
-  for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
-    newBuffer.copyToChannel(audioBuffer.getChannelData(i).subarray(startOffset, endOffset), i);
-  }
-
-  return bufferToWav(newBuffer);
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-function bufferToWav(buffer: AudioBuffer): Blob {
-  const numOfChan = buffer.numberOfChannels;
-  const length = buffer.length * numOfChan * 2 + 44;
-  const bufferArr = new ArrayBuffer(length);
-  const view = new DataView(bufferArr);
-  const channels = [];
-  let i;
-  let sample;
-  let offset = 0;
-  let pos = 0;
-
-  // write WAVE header
-  setUint32(0x46464952); // "RIFF"
-  setUint32(length - 8); // file length - 8
-  setUint32(0x45564157); // "WAVE"
-
-  setUint32(0x20746d66); // "fmt " chunk
-  setUint32(16); // length = 16
-  setUint16(1); // PCM (uncompressed)
-  setUint16(numOfChan);
-  setUint32(buffer.sampleRate);
-  setUint32(buffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
-  setUint16(numOfChan * 2); // block-align
-  setUint16(16); // 16-bit (hardcoded)
-
-  setUint32(0x61746164); // "data" - chunk
-  setUint32(length - pos - 4); // chunk length
-
-  // write interleaved data
-  for (i = 0; i < buffer.numberOfChannels; i++) {
-    channels.push(buffer.getChannelData(i));
-  }
-
-  while (pos < length) {
-    for (i = 0; i < numOfChan; i++) {
-      sample = Math.max(-1, Math.min(1, channels[i][offset]));
-      sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF) | 0;
-      view.setInt16(pos, sample, true);
-      pos += 2;
-    }
-    offset++;
-  }
-
-  return new Blob([bufferArr], { type: "audio/wav" });
-
-  function setUint16(data: number) {
-    view.setUint16(pos, data, true);
-    pos += 2;
-  }
-
-  function setUint32(data: number) {
-    view.setUint32(pos, data, true);
-    pos += 4;
-  }
+export function sanitizeFileName(name: string): string {
+  return name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9áéíóúüñÁÉÍÓÚÜÑ_-]+/g, '-');
 }

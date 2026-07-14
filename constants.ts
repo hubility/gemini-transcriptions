@@ -1,105 +1,66 @@
+import type { DocumentType } from './types';
+
+export const TRANSCRIPTION_MODEL = 'gemini-3.5-flash';
+export const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 * 1024;
+
+export const SPEAKER_COLORS = [
+  '#d97757',
+  '#4f7cac',
+  '#678d58',
+  '#9b6b9e',
+  '#b8872f',
+  '#4d8f8a',
+  '#aa5f73',
+  '#6f7f9a',
+];
 
 export const TRANSCRIPTION_PROMPT = `
-You are a Professional Transcriber specializing in business and technical meetings. Your sole function is to convert audio files into written text with the highest possible accuracy.
+Transcribe íntegramente esta reunión profesional.
 
-PROCESSING INSTRUCTIONS:
+Objetivo:
+- Producir una transcripción fiel, legible y completa.
+- Diferenciar a todos los participantes de forma consistente durante TODO el audio.
+- Mantener el idioma original de cada intervención. No traduzcas.
 
-SPEAKER IDENTIFICATION (Diarization):
-- You must identify and clearly separate different speakers.
-- Use consistent generic labels (e.g., [Speaker 1], [Speaker 2]) or specific names if they are explicitly mentioned at the beginning.
-- Every change of speaker must start a new paragraph.
+Diarización:
+- Analiza el audio completo antes de asignar identificadores.
+- Asigna speaker_id como "speaker_1", "speaker_2", etc. según el orden de primera aparición.
+- Mantén el mismo speaker_id cada vez que reaparezca esa voz.
+- Si el nombre de una persona se confirma explícitamente, úsalo en participants.name.
+- Si no se confirma, usa "Interlocutor 1", "Interlocutor 2", etc.
+- No deduzcas identidades por contexto ni inventes nombres.
 
-TRANSCRIPTION STYLE (Clean Verbatim):
-- The goal is readability without losing information.
-- Remove empty filler words, stutters, or involuntary repetitions (e.g., "um", "uh", "er").
-- Maintain exact technical vocabulary (especially software, insurance, or finance terms). Do not translate or alter industry-standard English terms if they are used in a different language context (e.g., "deployment", "churn", "deadline").
+Segmentación:
+- Crea un segmento en cada cambio de hablante y cuando una intervención larga cambie claramente de tema.
+- start_seconds y end_seconds son segundos desde el inicio del archivo.
+- Usa marcas de tiempo monotónicas y lo más precisas posible.
+- No solapes segmentos salvo que realmente hablen a la vez.
 
-OUTPUT FORMAT:
-The output must be strictly plain text following this format:
-[MM:SS] [Speaker X]: [Text of what is being said...]
-
-NOISE/INAUDIBLE HANDLING:
-- If a section is impossible to understand due to noise or overlapping voices, mark that section as [INAUDIBLE] or [NOISE] and continue. Do not invent text.
-
-LANGUAGE:
-- Automatically detect the audio language (Spanish, English, or Portuguese) and transcribe in that same source language. Do not translate the content, simply transcribe it.
-
-IMPORTANT: Do not summarize, do not draw conclusions, and do not generate minutes. Your output must be ONLY the full transcription of the audio.
+Texto:
+- Conserva cifras, importes, fechas, nombres de producto y terminología técnica.
+- Elimina únicamente muletillas vacías y tartamudeos que no aporten significado.
+- No resumas, no completes frases dudosas y no mejores el contenido.
+- Marca como [inaudible] solo la porción que no pueda entenderse.
+- No añadas comentarios, confianza inventada ni texto fuera del JSON solicitado.
 `;
 
-export const PROPOSAL_PROMPT = `
-# ROL: Senior Strategic Business Analyst & Document Architect
-Tu objetivo es transformar la información de la transcripción en una PROPUESTA COMERCIAL DE ALTO NIVEL. No eres un redactor básico, eres un consultor estratégico.
-
-# CONSTRAINT CRÍTICO: EL "STRATEGIC NOISE FILTER"
-Antes de generar el documento, debes limpiar mentalmente la información:
-1. IDENTIFICA EL NÚCLEO: ¿Cuál es el problema de negocio *real* que estamos resolviendo? (Ej: Ineficiencia operativa, falta de ventas, riesgos de seguridad).
-2. EJECUTA EL FILTRO DE RUIDO: Ignora explícitamente anécdotas personales (ej: temas familiares, vacaciones, el seguro de la madre de Rodolfo), interrupciones logísticas o "small talk".
-3. SEGREGACIÓN: Si se mencionan otros proyectos o clientes ajenos a esta propuesta específica, descártalos totalmente. No mezcles contextos.
-
-# TONO Y ESTILO
-- Tono: Consultivo, Proactivo y Estratégico.
-- Estilo: Sobrio y profesional. Evita adjetivos de "venta agresiva" (increíble, maravilloso, único). Usa lenguaje de negocios (optimización, escalabilidad, retorno, mitigación).
-
-# ESTRUCTURA OBLIGATORIA DEL DOCUMENTO
-
-1. CONTEXTO Y DIAGNÓSTICO (El "Por qué")
-   - Resume la situación actual del cliente sin juicios de valor.
-   - Define el "Punto de Dolor" principal detectado en la reunión.
-   - *Objetivo:* Que el cliente sienta que entendimos su problema mejor que él mismo.
-
-2. ENFOQUE ESTRATÉGICO (El "Cómo" conceptual)
-   - No listes tareas todavía. Explica los pilares de la solución.
-   - Usa conceptos como: Eficiencia Operativa, Escalabilidad Técnica e Impacto en Negocio.
-
-3. PROPUESTA DE VALOR Y ROADMAP (La Solución)
-   - Describe la solución propuesta conectándola con los problemas del punto 1.
-   - Menciona cómo se integra esto con sus procesos actuales (si se habló de ello).
-   - *Nota:* Si hay stack tecnológico mencionado (Next.js, Prisma, etc.), inclúyelo aquí como ventaja técnica.
-
-4. INVERSIÓN Y ALCANCE
-   - Si se mencionaron precios/presupuestos: Inclúyelos claramente.
-   - Si NO se mencionaron: Inserta el marcador [INSERTAR DETALLE ECONÓMICO AQUÍ].
-
-5. PRÓXIMOS PASOS (Cierre Consultivo)
-   - Llamada a la acción profesional para validar el alcance o agendar inicio.
-
-# REGLA FINAL DE INTEGRIDAD
-Si falta información crítica para una sección (ej: no se definió el problema claro), no inventes. Marca la sección como: "[FALTA INFORMACIÓN ESPECÍFICA EN LA TRANSCRIPCIÓN]".
-`;
-
-export const UPSELLING_PROMPT = `
-# ROL: Strategic Account Manager & Growth Consultant
-Tu objetivo es redactar un documento de AMPLIACIÓN DE SERVICIOS (Upselling) o OPORTUNIDAD LATENTE basado estrictamente en evidencias encontradas en la reunión.
-
-# CONSTRAINT CRÍTICO: EVIDENCIA vs RUIDO
-1. REGLA DE ORO: Solo puedes proponer una ampliación si el cliente mencionó un problema o necesidad real relacionada.
-2. FILTRO DE CHARLA CASUAL: No confundas un comentario social con una oportunidad de venta. (Ej: Si dicen "me duele la cabeza", no vendas aspirinas. Si dicen "mi equipo pierde tiempo facturando manualmente", vende automatización).
-3. DESCARTA LO IRRELEVANTE: Ignora temas personales (familia, salud, deportes) completamente.
-
-# TONO Y ESTILO
-- Tono: "Trusted Advisor" (Asesor de Confianza). No parezcas un vendedor desesperado.
-- Enfoque: "He notado X, por lo tanto sugiero Y para evitar Z".
-
-# ESTRUCTURA OBLIGATORIA DEL DOCUMENTO
-
-1. REFERENCIA AL PROYECTO ACTUAL
-   - Una frase de contexto sobre la relación actual o el proyecto principal discutido.
-
-2. NUEVAS NECESIDADES DETECTADAS (La Evidencia)
-   - Cita o parafrasea el problema mencionado en la reunión que justifica esta ampliación.
-   - Usa frases como: "Durante la sesión, mencionaste que...", "Identificamos un cuello de botella en..."
-
-3. RECOMENDACIÓN ESTRATÉGICA (La Solución Adicional)
-   - Describe el servicio o módulo adicional que resuelve esa necesidad específica.
-   - Explica por qué es mejor abordarlo ahora y no después.
-
-4. IMPACTO ESPERADO (El Beneficio)
-   - Traduce la solución a beneficios de negocio (Ahorro de horas, reducción de riesgo legal, aumento de conversión).
-
-# REGLA FINAL
-Si la transcripción no contiene ninguna oportunidad clara de upselling, o solo hay ruido, tu salida debe ser: "ALERTA: No se detectaron oportunidades de ampliación claras en esta reunión basada en los criterios de calidad."
-`;
-
-export const CHUNK_DURATION_SECONDS = 600; // 10 minutes chunks to avoid output token limits
-export const MAX_FILE_SIZE_MB = 200;
+export const DOCUMENT_PROMPTS: Record<DocumentType, string> = {
+  minutes: `
+Redacta un acta operativa a partir de la transcripción. Incluye: contexto, decisiones confirmadas,
+acciones con responsable si aparece, asuntos pendientes y próximos pasos. Distingue hechos de
+propuestas. No inventes responsables, fechas ni acuerdos. Marca la información ausente con
+"No consta en la reunión". Escribe en español de España, con tono directo y profesional.
+`,
+  proposal: `
+Convierte la transcripción en un borrador de propuesta comercial sobria. Incluye contexto,
+necesidad detectada, alcance propuesto, dependencias, inversión solo si fue mencionada y próximos
+pasos. Excluye charla casual y proyectos ajenos. No inventes datos; marca cualquier hueco crítico
+como [INFORMACIÓN PENDIENTE]. Escribe en español de España.
+`,
+  upselling: `
+Analiza la transcripción para detectar oportunidades reales de ampliación. Cada oportunidad debe
+incluir evidencia de la reunión, necesidad, recomendación e impacto esperado. Descarta comentarios
+casuales y necesidades no confirmadas. Si no hay evidencia suficiente, indícalo claramente. No
+inventes oportunidades. Escribe en español de España.
+`,
+};

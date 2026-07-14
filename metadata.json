@@ -1,7 +1,5 @@
 {
-  "name": "Gemini Pro Transcriber",
-  "description": "A high-precision audio transcription application that uses Gemini AI to convert long recordings into clean verbatim text with speaker diarization.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
+  "name": "Registro de reuniones",
+  "description": "Transcripción editable de reuniones con diarización, marcas de tiempo y documentos derivados.",
+  "requestFramePermissions": []
 }

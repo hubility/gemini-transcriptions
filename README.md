@@ -1,20 +1,23 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Registro
 
-# Run and deploy your AI Studio app
+Aplicación web para transcribir y diarizar reuniones mediante Gemini. Está diseñada para ejecutarse
+desde Google AI Studio o en local con Vite.
 
-This contains everything you need to run your app locally.
+## Qué cambia respecto al prototipo original
 
-View your app in AI Studio: https://ai.studio/apps/drive/1umtLk19BS_81-sl1zRmn8GJcRcAx8JP9
+- El audio se sube una sola vez mediante Gemini Files API; no se decodifica ni se convierte a WAV en el navegador.
+- La transcripción se solicita como JSON estructurado y se valida antes de mostrarla.
+- La diarización mantiene identificadores de interlocutor para toda la reunión.
+- El procesamiento admite cancelación, reintentos temporales y mensajes de error útiles.
+- El texto, los nombres y el título pueden corregirse antes de exportar o generar documentos.
+- El archivo remoto se elimina al terminar el procesamiento.
 
-## Run Locally
+## Desarrollo local
 
-**Prerequisites:**  Node.js
+1. Instala las dependencias: `npm install`
+2. Define `GEMINI_API_KEY` en `.env.local`.
+3. Ejecuta `npm run dev`.
 
+Comprobaciones: `npm run typecheck` y `npm run build`.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+En AI Studio se conserva el mecanismo existente que inyecta la clave como `process.env.API_KEY`.
